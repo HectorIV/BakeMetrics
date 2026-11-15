@@ -35,9 +35,6 @@ jobs:
 
       - name: Configurar Pages
         uses: actions/configure-pages@v5
-        with:
-          # Crea el sitio de Pages automáticamente la primera vez.
-          enablement: true
 
       - name: Subir el sitio compilado
         uses: actions/upload-pages-artifact@v3
@@ -53,4 +50,4 @@ jobs:
     steps:
       - name: Publicar
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
