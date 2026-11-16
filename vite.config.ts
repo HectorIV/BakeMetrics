@@ -11,7 +11,13 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'],
+      includeAssets: [
+        'favicon.svg',
+        'favicon-32.png',
+        'icon-192.png',
+        'icon-512.png',
+        'apple-touch-icon.png',
+      ],
       manifest: {
         name: 'BakeMetrics · Recetas y costos',
         short_name: 'BakeMetrics',
