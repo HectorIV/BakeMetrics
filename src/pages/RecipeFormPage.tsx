@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useApp } from '../store/store'
-import type { Ingredient, Recipe, RecipeLine } from '../types'
+import type { Ingredient, PackagingItem, Recipe, RecipeLine } from '../types'
 import { RECIPE_CATEGORIES } from '../lib/labels'
 import { computeRecipeCost, lineCost, money, moneyPrecise, percent } from '../lib/cost'
 import { STANDARD_UNITS, baseUnitName, formatBase, formatCookQty, trim } from '../lib/units'
@@ -92,6 +92,29 @@ export function RecipeFormPage() {
     setDraft((current) => ({
       ...current,
       steps: [...current.steps, { id: uid('step-'), text: '' }],
+    }))
+
+  const addPackaging = () =>
+    setDraft((current) => ({
+      ...current,
+      packagingItems: [
+        ...(current.packagingItems ?? []),
+        { id: uid('pack-'), name: '', packPrice: 0, coversUnits: 1 },
+      ],
+    }))
+
+  const updatePackaging = (itemId: string, patch: Partial<PackagingItem>) =>
+    setDraft((current) => ({
+      ...current,
+      packagingItems: (current.packagingItems ?? []).map((item) =>
+        item.id === itemId ? { ...item, ...patch } : item,
+      ),
+    }))
+
+  const removePackaging = (itemId: string) =>
+    setDraft((current) => ({
+      ...current,
+      packagingItems: (current.packagingItems ?? []).filter((item) => item.id !== itemId),
     }))
 
   const save = () => {
@@ -506,14 +529,78 @@ export function RecipeFormPage() {
       <Card className="space-y-3">
         <SectionTitle>Costos y precio</SectionTitle>
 
+        <div className="rounded-2xl border border-sand/70 bg-white/60 p-3">
+          <p className="text-[12.5px] font-semibold">Empaques de esta receta</p>
+          <p className="mt-0.5 text-[11px] leading-snug text-ink/45">
+            Papel de muffin, envase plástico, caja de cartón, etiqueta… Anota el precio del
+            paquete y para cuántas unidades alcanza.
+          </p>
+
+          <div className="mt-2 space-y-2">
+            {(draft.packagingItems ?? []).map((item) => {
+              const perUnit = item.coversUnits > 0 ? item.packPrice / item.coversUnits : 0
+              return (
+                <div key={item.id} className="rounded-xl border border-sand/60 bg-white/70 p-2">
+                  <div className="flex items-center gap-2">
+                    <TextInput
+                      value={item.name}
+                      onChange={(event) => updatePackaging(item.id, { name: event.target.value })}
+                      placeholder="Ej. Papel de muffin"
+                      aria-label="Nombre del empaque"
+                      className="py-2 text-[13.5px]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removePackaging(item.id)}
+                      aria-label="Quitar empaque"
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-berry/70"
+                    >
+                      <Icon name="trash" className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <div className="mt-1.5 grid grid-cols-[1fr,1fr,auto] items-end gap-2">
+                    <Field label="Precio del paquete">
+                      <MoneyInput
+                        value={item.packPrice}
+                        onChange={(value) => updatePackaging(item.id, { packPrice: value })}
+                        aria-label="Precio del paquete"
+                      />
+                    </Field>
+                    <Field label="Rinde (unidades)">
+                      <QtyInput
+                        value={item.coversUnits}
+                        onChange={(value) => updatePackaging(item.id, { coversUnits: value })}
+                        aria-label="Unidades que cubre el paquete"
+                      />
+                    </Field>
+                    <div className="pb-2.5 text-right">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-ink/40">C/u</p>
+                      <p className="text-[13px] font-semibold tabular-nums">{moneyPrecise(perUnit)}</p>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          <button
+            type="button"
+            onClick={addPackaging}
+            className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-sand py-2 text-[12.5px] font-semibold text-cocoa"
+          >
+            <Icon name="plus" className="h-4 w-4" /> Agregar empaque
+          </button>
+
+          {(draft.packagingItems ?? []).length === 0 && (
+            <p className="mt-2 text-[11px] leading-snug text-ink/45">
+              Sin empaques detallados se usará {
+                money(draft.packagingPerUnit ?? state.settings.packagingPerUnit)
+              } por unidad.
+            </p>
+          )}
+        </div>
+
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Empaque por unidad" htmlFor="packaging">
-            <MoneyInput
-              id="packaging"
-              value={draft.packagingPerUnit ?? state.settings.packagingPerUnit}
-              onChange={(value) => update({ packagingPerUnit: value })}
-            />
-          </Field>
           <Field label="Gas / extras por tanda" htmlFor="extra">
             <MoneyInput
               id="extra"

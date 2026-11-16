@@ -2,6 +2,7 @@ import type {
   AppState,
   Ingredient,
   IngredientCategory,
+  PackagingItem,
   Recipe,
   RecipeLine,
   RecipeStep,
@@ -429,6 +430,52 @@ function baseRecipe(
   }
 }
 
+function pack(
+  id: string,
+  name: string,
+  packPrice: number,
+  coversUnits: number,
+): PackagingItem {
+  return { id, name, packPrice, coversUnits }
+}
+
+/**
+ * Empaques de ejemplo por receta. Los precios son referencias de Panamá:
+ * ajústalos con lo que realmente pagas en cada paquete.
+ */
+export const SEED_PACKAGING: Record<string, PackagingItem[]> = {
+  'rec-avena': [
+    pack('pk-av-1', 'Bolsa celofán', 0.08, 1),
+    pack('pk-av-2', 'Caja de cartón para 12', 0.35, 12),
+    pack('pk-av-3', 'Etiqueta adhesiva', 2.5, 50),
+  ],
+  'rec-chips': [
+    pack('pk-ch-1', 'Bolsa celofán', 0.08, 1),
+    pack('pk-ch-2', 'Caja de cartón para 12', 0.35, 12),
+    pack('pk-ch-3', 'Etiqueta adhesiva', 2.5, 50),
+  ],
+  'rec-chocolate': [
+    pack('pk-cc-1', 'Papel encerado', 0.2, 10),
+    pack('pk-cc-2', 'Caja de cartón para 10', 0.4, 10),
+    pack('pk-cc-3', 'Etiqueta adhesiva', 2.5, 50),
+  ],
+  'rec-mantequilla': [
+    pack('pk-mn-1', 'Bolsa celofán', 0.08, 1),
+    pack('pk-mn-2', 'Caja de cartón para 15', 0.45, 15),
+    pack('pk-mn-3', 'Etiqueta adhesiva', 2.5, 50),
+  ],
+  'rec-muffins': [
+    pack('pk-mf-1', 'Papel / capacillo de muffin', 1.5, 50),
+    pack('pk-mf-2', 'Envase plástico para 6', 0.6, 6),
+    pack('pk-mf-3', 'Etiqueta adhesiva', 2.5, 50),
+  ],
+  'rec-pizza': [
+    pack('pk-pz-1', 'Caja de cartón para pizza', 0.6, 4),
+    pack('pk-pz-2', 'Papel antigrasa', 0.12, 4),
+    pack('pk-pz-3', 'Servilleta', 1.2, 50),
+  ],
+}
+
 export const SEED_RECIPES: Recipe[] = [
   baseRecipe({
     id: 'rec-avena',
@@ -465,7 +512,8 @@ export const SEED_RECIPES: Recipe[] = [
     extraCostPerBatch: 0.35,
     mermaPct: 3,
     marginPct: 60,
-    packagingPerUnit: 0.12,
+    packagingItems: SEED_PACKAGING['rec-avena'],
+    packagingPerUnit: 0.16,
     notes: 'La receta original usa 1 taza de avena (115 g) y 1/3 de taza de aceite de oliva.',
   }),
   baseRecipe({
@@ -505,7 +553,8 @@ export const SEED_RECIPES: Recipe[] = [
     extraCostPerBatch: 0.4,
     mermaPct: 2,
     marginPct: 62,
-    packagingPerUnit: 0.12,
+    packagingItems: SEED_PACKAGING['rec-chips'],
+    packagingPerUnit: 0.16,
   }),
   baseRecipe({
     id: 'rec-chocolate',
@@ -541,7 +590,8 @@ export const SEED_RECIPES: Recipe[] = [
     extraCostPerBatch: 0.35,
     mermaPct: 3,
     marginPct: 60,
-    packagingPerUnit: 0.12,
+    packagingItems: SEED_PACKAGING['rec-chocolate'],
+    packagingPerUnit: 0.11,
   }),
   baseRecipe({
     id: 'rec-mantequilla',
@@ -574,7 +624,8 @@ export const SEED_RECIPES: Recipe[] = [
     extraCostPerBatch: 0.45,
     mermaPct: 3,
     marginPct: 58,
-    packagingPerUnit: 0.12,
+    packagingItems: SEED_PACKAGING['rec-mantequilla'],
+    packagingPerUnit: 0.16,
   }),
   baseRecipe({
     id: 'rec-muffins',
@@ -616,7 +667,8 @@ export const SEED_RECIPES: Recipe[] = [
     extraCostPerBatch: 0.4,
     mermaPct: 2,
     marginPct: 65,
-    packagingPerUnit: 0.22,
+    packagingItems: SEED_PACKAGING['rec-muffins'],
+    packagingPerUnit: 0.18,
     notes: 'La harina de avena ya contiene polvo para hornear: no agregar más.',
   }),
   baseRecipe({
@@ -653,7 +705,8 @@ export const SEED_RECIPES: Recipe[] = [
     extraCostPerBatch: 0.5,
     mermaPct: 2,
     marginPct: 55,
-    packagingPerUnit: 0.1,
+    packagingItems: SEED_PACKAGING['rec-pizza'],
+    packagingPerUnit: 0.2,
     notes: 'Receta base editable: ajusta la hidratación según tu harina.',
   }),
 ]
@@ -677,7 +730,7 @@ export const DEFAULT_SETTINGS: Settings = {
 
 export function seedState(): AppState {
   return {
-    version: 1,
+    version: 2,
     ingredients: SEED_INGREDIENTS,
     recipes: SEED_RECIPES,
     purchases: [],

@@ -267,6 +267,16 @@ export function RecipeDetailPage() {
             {cost.mermaCost > 0 && <Row label={`Merma (${recipe.mermaPct}%)`} value={money(cost.mermaCost)} />}
             <Row label={`Mano de obra (${recipe.laborMinutes} min)`} value={money(cost.laborCost)} />
             <Row label="Empaque" value={money(cost.packagingCost)} />
+            {cost.packagingLines.length > 0 && (
+              <ul className="space-y-1 border-l border-sand pl-2.5 text-[11.5px] text-ink/50">
+                {cost.packagingLines.map(({ item, perUnit }) => (
+                  <li key={item.id} className="flex items-center justify-between gap-3">
+                    <span className="truncate">{item.name}</span>
+                    <span className="shrink-0 tabular-nums">{moneyPrecise(perUnit)}/u</span>
+                  </li>
+                ))}
+              </ul>
+            )}
             {cost.extraCost > 0 && <Row label="Gas / extras" value={money(cost.extraCost)} />}
             <Row label={`Gastos indirectos (${state.settings.overheadPct}%)`} value={money(cost.overhead)} />
             <div className="my-1 border-t border-sand" />
@@ -418,6 +428,47 @@ export function RecipeDetailPage() {
         </ul>
         {cost.lines.length === 0 && (
           <p className="py-4 text-center text-[12.5px] text-ink/40">Esta receta no tiene ingredientes todavía.</p>
+        )}
+      </Card>
+
+      {/* Empaques */}
+      <Card>
+        <SectionTitle
+          action={<span className="text-[11px] text-ink/40">{money(cost.packagingCost)} por tanda</span>}
+        >
+          Empaques
+        </SectionTitle>
+        {cost.packagingLines.length > 0 ? (
+          <>
+            <ul className="divide-y divide-sand/50">
+              {cost.packagingLines.map(({ item, perUnit, total }) => (
+                <li key={item.id} className="flex items-center gap-3 py-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13.5px] font-medium">{item.name}</p>
+                    <p className="text-[11px] text-ink/45">
+                      {money(item.packPrice)} rinde {formatCookQty(item.coversUnits)}{' '}
+                      {item.coversUnits === 1 ? 'unidad' : 'unidades'}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-[12.5px] font-semibold">{moneyPrecise(perUnit)} c/u</p>
+                    <p className="text-[10.5px] text-ink/40">{money(total)} por tanda</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 text-[11px] leading-snug text-ink/45">
+              Precios de ejemplo: ajústalos con lo que pagas en cada paquete desde Editar receta.
+            </p>
+          </>
+        ) : (
+          <p className="text-[12.5px] leading-relaxed text-ink/50">
+            Sin empaques detallados. Se usa el costo por unidad de Ajustes:{' '}
+            <strong className="text-ink/70">
+              {money(cost.packagingCost / Math.max(cost.units, 1))}
+            </strong>
+            {' '}por unidad. Puedes detallar los empaques desde Editar receta.
+          </p>
         )}
       </Card>
 

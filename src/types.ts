@@ -76,6 +76,16 @@ export interface RecipeStep {
   minutes?: number
 }
 
+/** Empaque que se usa por unidad vendida (papel, caja, envase, etiqueta). */
+export interface PackagingItem {
+  id: string
+  name: string
+  /** Precio del paquete, rollo o caja completa. */
+  packPrice: number
+  /** Cuántas unidades vendibles cubre ese paquete. */
+  coversUnits: number
+}
+
 export interface BakeInfo {
   tempC?: number
   minutes?: number
@@ -104,6 +114,8 @@ export interface Recipe {
   laborRate?: number
   /** Costo de empaque (bolsa, etiqueta) por unidad vendida. */
   packagingPerUnit?: number
+  /** Lista detallada de empaques; si existe, reemplaza a packagingPerUnit. */
+  packagingItems?: PackagingItem[]
   /** Costos extra por tanda: gas, decoración, etc. */
   extraCostPerBatch: number
   /** Merma adicional de la tanda completa (%). */

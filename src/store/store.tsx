@@ -1,11 +1,11 @@
 import { createContext, useContext, useEffect, useMemo, useReducer, type ReactNode } from 'react'
 import type { AppState, Batch, Ingredient, Purchase, Recipe, Settings } from '../types'
-import { DEFAULT_SETTINGS, seedState } from '../data/seed'
+import { DEFAULT_SETTINGS, SEED_PACKAGING, seedState } from '../data/seed'
 import { deductIngredients } from '../lib/cost'
 import { toBase } from '../lib/units'
 
 const STORAGE_KEY = 'bakemetrics.state.v1'
-const CURRENT_VERSION = 1
+const CURRENT_VERSION = 2
 
 type Action =
   | { type: 'upsertIngredient'; ingredient: Ingredient }
@@ -27,6 +27,7 @@ function normalizeState(input: unknown): AppState | null {
   if (!input || typeof input !== 'object') return null
   const data = input as Partial<AppState>
   if (!Array.isArray(data.ingredients) || !Array.isArray(data.recipes)) return null
+  const previousVersion = typeof data.version === 'number' ? data.version : 1
   return {
     version: CURRENT_VERSION,
     ingredients: data.ingredients.map((i) => ({
@@ -47,6 +48,8 @@ function normalizeState(input: unknown): AppState | null {
       itbms: r.itbms ?? false,
       favorite: r.favorite ?? false,
       tags: r.tags ?? [],
+      packagingItems:
+        r.packagingItems ?? (previousVersion < 2 ? (SEED_PACKAGING[r.id] ?? []) : []),
     })),
     purchases: data.purchases ?? [],
     batches: data.batches ?? [],

@@ -203,7 +203,11 @@ export function SettingsPage() {
               onChange={(value) => update({ laborRatePerHour: value })}
             />
           </Field>
-          <Field label="Empaque por unidad" htmlFor="packaging-default">
+          <Field
+            label="Empaque por unidad (por defecto)"
+            htmlFor="packaging-default"
+            hint="Solo se usa cuando la receta no tiene empaques detallados."
+          >
             <MoneyInput
               id="packaging-default"
               value={settings.packagingPerUnit}

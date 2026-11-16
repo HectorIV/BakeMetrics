@@ -1,4 +1,4 @@
-import type { Ingredient, Recipe, RecipeLine, Settings } from '../types'
+import type { Ingredient, PackagingItem, Recipe, RecipeLine, Settings } from '../types'
 import { ceilToStep, round2, toBase } from './units'
 
 export interface LineCost {
@@ -10,6 +10,14 @@ export interface LineCost {
   error?: string
 }
 
+export interface PackagingLineCost {
+  item: PackagingItem
+  /** Costo de empaque por unidad vendida. */
+  perUnit: number
+  /** Costo de esa línea para la tanda escalada. */
+  total: number
+}
+
 export interface RecipeCost {
   factor: number
   units: number
@@ -18,6 +26,7 @@ export interface RecipeCost {
   mermaCost: number
   laborCost: number
   packagingCost: number
+  packagingLines: PackagingLineCost[]
   extraCost: number
   overhead: number
   totalCost: number
@@ -110,7 +119,16 @@ export function computeRecipeCost(
   const laborRate = recipe.laborRate ?? settings.laborRatePerHour
   const laborCost = (recipe.laborMinutes / 60) * laborRate * safeFactor
   const packagingPerUnit = recipe.packagingPerUnit ?? settings.packagingPerUnit
-  const packagingCost = packagingPerUnit * units
+  const packagingItems = recipe.packagingItems ?? []
+  const packagingLines: PackagingLineCost[] = packagingItems.map((item) => {
+    const covers = item.coversUnits > 0 ? item.coversUnits : 1
+    const perUnit = item.packPrice > 0 ? item.packPrice / covers : 0
+    return { item, perUnit, total: perUnit * units }
+  })
+  const packagingCost =
+    packagingLines.length > 0
+      ? packagingLines.reduce((sum, line) => sum + line.total, 0)
+      : packagingPerUnit * units
   const extraCost = (recipe.extraCostPerBatch || 0) * safeFactor
 
   const subtotal = ingredientsCost + mermaCost + laborCost + packagingCost + extraCost
@@ -166,6 +184,7 @@ export function computeRecipeCost(
     mermaCost,
     laborCost,
     packagingCost,
+    packagingLines,
     extraCost,
     overhead,
     totalCost,
