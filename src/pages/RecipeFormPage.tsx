@@ -71,7 +71,7 @@ export function RecipeFormPage() {
   const addLine = () => {
     const first = ingredients[0]
     if (!first) {
-      toast('Primero agrega ingredientes al inventario', 'error')
+      toast('Primero agrega ingredientes con su precio', 'error')
       return
     }
     updateLineAdder(first)
@@ -279,7 +279,7 @@ export function RecipeFormPage() {
         <SectionTitle
           action={
             <Link to="/inventario" className="text-[11px] font-semibold text-terra">
-              Inventario
+              Ingredientes
             </Link>
           }
         >
@@ -288,7 +288,7 @@ export function RecipeFormPage() {
 
         {ingredients.length === 0 && (
           <InfoNote tone="warn">
-            No tienes ingredientes todavía. Ve a <b>Inventario</b> para crear el primero con su
+            No tienes ingredientes todavía. Ve a <b>Ingredientes</b> para crear el primero con su
             precio y unidad de compra.
           </InfoNote>
         )}

@@ -209,70 +209,6 @@ export function adjustFactor(factor: number): number {
   return factor
 }
 
-export interface GapLine {
-  ingredient: Ingredient
-  neededBase: number
-  missingBase: number
-  missingCost: number
-}
-
-/** Lo que falta comprar para producir `factor` tandas. */
-export function stockGaps(
-  recipe: Recipe,
-  ingredients: Ingredient[],
-  factor = 1,
-): GapLine[] {
-  const needed = new Map<string, number>()
-  for (const line of recipe.lines) {
-    const ing = ingredients.find((i) => i.id === line.ingredientId)
-    if (!ing) continue
-    const base = toBase(line.qty * adjustFactor(factor), line.unit, ing)
-    if (base === null) continue
-    needed.set(ing.id, (needed.get(ing.id) ?? 0) + base)
-  }
-  const gaps: GapLine[] = []
-  for (const [id, qty] of needed) {
-    const ing = ingredients.find((i) => i.id === id)
-    if (!ing || ing.free) continue
-    const missingBase = Math.max(0, qty - ing.stock)
-    if (missingBase > 0.0001) {
-      gaps.push({
-        ingredient: ing,
-        neededBase: qty,
-        missingBase,
-        missingCost: missingBase * pricePerBase(ing),
-      })
-    }
-  }
-  return gaps
-}
-
-/** Descuenta del inventario lo usado en una horneada. */
-export function deductIngredients(
-  ingredients: Ingredient[],
-  recipe: Recipe,
-  factor = 1,
-): Ingredient[] {
-  const usage = new Map<string, number>()
-  for (const line of recipe.lines) {
-    const ing = ingredients.find((i) => i.id === line.ingredientId)
-    if (!ing) continue
-    const base = toBase(line.qty * adjustFactor(factor), line.unit, ing)
-    if (base === null) continue
-    usage.set(ing.id, (usage.get(ing.id) ?? 0) + base)
-  }
-  return ingredients.map((ing) => {
-    const used = usage.get(ing.id)
-    if (!used) return ing
-    const stock = Math.max(0, round2(ing.stock - used))
-    return {
-      ...ing,
-      stock,
-      lastPurchaseAt: ing.lastPurchaseAt,
-    }
-  })
-}
-
 export function batchPlan(recipe: Recipe, targetUnits: number) {
   const factor = recipe.yieldQty > 0 ? Math.max(0.1, targetUnits / recipe.yieldQty) : 1
   const wholeBatches = Math.max(1, Math.ceil(factor - 1e-6))
@@ -283,8 +219,4 @@ export function batchPlan(recipe: Recipe, targetUnits: number) {
     wholeUnits: recipe.yieldQty * wholeBatches,
     leftoverUnits: recipe.yieldQty * wholeBatches - targetUnits,
   }
-}
-
-export function ingredientValue(ing: Ingredient): number {
-  return Math.max(0, ing.stock) * pricePerBase(ing)
 }

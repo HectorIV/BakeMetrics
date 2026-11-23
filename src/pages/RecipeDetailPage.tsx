@@ -7,9 +7,8 @@ import {
   money,
   moneyPrecise,
   percent,
-  stockGaps,
 } from '../lib/cost'
-import { formatBase, formatCookQty, trim, unitLabel } from '../lib/units'
+import { formatBase, formatCookQty, toBase, trim, unitLabel } from '../lib/units'
 import { CATEGORY_GRADIENTS, recipeCategoryLabel } from '../lib/labels'
 import {
   Badge,
@@ -19,25 +18,23 @@ import {
   InfoNote,
   QtyInput,
   SectionTitle,
-  Sheet,
   cn,
 } from '../components/ui'
 import { Icon } from '../components/Icon'
+import { TandaSheet } from '../components/TandaSheet'
 import { toast } from '../lib/toast'
-import { uid } from '../lib/id'
+import { formatDateShort } from '../lib/id'
 import type { Ingredient } from '../types'
 
 export function RecipeDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { state, upsertRecipe, addBatch } = useApp()
+  const { state, upsertRecipe, toggleShopping } = useApp()
   const recipe = state.recipes.find((r) => r.id === id)
 
   const [factor, setFactor] = useState(1)
   const [showBreakdown, setShowBreakdown] = useState(false)
-  const [bakeOpen, setBakeOpen] = useState(false)
-  const [deduct, setDeduct] = useState(true)
-  const [bakeNotes, setBakeNotes] = useState('')
+  const [tandaOpen, setTandaOpen] = useState(false)
   const [doneSteps, setDoneSteps] = useState<Record<string, boolean>>({})
 
   const baseCost = useMemo(
@@ -48,10 +45,29 @@ export function RecipeDetailPage() {
     () => (recipe ? computeRecipeCost(recipe, state.ingredients, state.settings, factor) : null),
     [recipe, state.ingredients, state.settings, factor],
   )
-  const gaps = useMemo(
-    () => (recipe ? stockGaps(recipe, state.ingredients, factor) : []),
-    [recipe, state.ingredients, factor],
-  )
+  const shoppingItems = useMemo(() => {
+    if (!recipe) return []
+    const ids = [...new Set(recipe.lines.map((line) => line.ingredientId))]
+    return ids
+      .map((ingredientId) => {
+        const ingredient = state.ingredients.find((item) => item.id === ingredientId)
+        if (!ingredient) return null
+        const neededBase = recipe.lines
+          .filter((line) => line.ingredientId === ingredientId)
+          .reduce(
+            (sum, line) => sum + (toBase(line.qty * factor, line.unit, ingredient) ?? 0),
+            0,
+          )
+        const packBase = toBase(ingredient.packQty, ingredient.packUnit, ingredient)
+        const packs =
+          packBase && packBase > 0 ? Math.max(1, Math.ceil(neededBase / packBase)) : 1
+        return { ingredient, neededBase, packs }
+      })
+      .filter(
+        (item): item is { ingredient: Ingredient; neededBase: number; packs: number } =>
+          item !== null,
+      )
+  }, [recipe, state.ingredients, factor])
 
   if (!recipe || !cost || !baseCost) {
     return (
@@ -68,45 +84,36 @@ export function RecipeDetailPage() {
   const plan = batchPlan(recipe, recipe.yieldQty * factor)
   const stepDoneCount = recipe.steps.filter((s) => doneSteps[s.id]).length
   const gradient = CATEGORY_GRADIENTS[recipe.category]
-  const gapCost = gaps.reduce((sum, g) => sum + g.missingCost, 0)
   const hasEstimatedPrices = cost.lines.some((l) => l.ingredient?.priceEstimated)
+  const recentBatches = state.batches.filter((batch) => batch.recipeId === recipe.id).slice(0, 5)
+  const checkedCount = shoppingItems.filter(
+    (item) => state.shoppingChecks[`${recipe.id}:${item.ingredient.id}`],
+  ).length
+
+  const clearRecipeChecks = () => {
+    for (const item of shoppingItems) {
+      const key = `${recipe.id}:${item.ingredient.id}`
+      if (state.shoppingChecks[key]) toggleShopping(key)
+    }
+  }
 
   const copyShoppingList = async () => {
-    const text = gaps
+    const text = shoppingItems
       .map(
-        (g) =>
-          `• ${g.ingredient.name}: ${formatBase(g.missingBase, g.ingredient.baseUnit)} (${money(
-            g.missingCost,
-          )})`,
+        (item) =>
+          `• ${item.ingredient.name}: ${formatBase(item.neededBase, item.ingredient.baseUnit)} (${item.packs} ${
+            item.packs === 1 ? 'paquete' : 'paquetes'
+          })`,
       )
       .join('\n')
     try {
-      await navigator.clipboard.writeText(`Lista para ${recipe.name} (${formatCookQty(cost.units)} ${recipe.yieldLabel}):\n${text}`)
+      await navigator.clipboard.writeText(
+        `Lista para ${recipe.name} (${formatCookQty(cost.units)} ${recipe.yieldLabel}):\n${text}`,
+      )
       toast('Lista copiada', 'success')
     } catch {
       toast('No pudimos copiar. Selecciona el texto manualmente.', 'error')
     }
-  }
-
-  const registerBake = () => {
-    const batch = {
-      id: uid('bat-'),
-      date: new Date().toISOString(),
-      recipeId: recipe.id,
-      recipeName: recipe.name,
-      factor,
-      units: cost.units,
-      totalCost: cost.totalCost,
-      pricePerUnit: cost.finalPrice,
-      notes: bakeNotes.trim() || undefined,
-    }
-    addBatch(batch, recipe, factor, deduct)
-    setBakeOpen(false)
-    setBakeNotes('')
-    toast(
-      `Horneada registrada: ${formatCookQty(cost.units)} ${recipe.yieldLabel}${deduct ? ' · inventario actualizado' : ''}`,
-      'success',
-    )
   }
 
   return (
@@ -197,8 +204,8 @@ export function RecipeDetailPage() {
           )}
           {cost.missingConversions.length > 0 && (
             <p>
-              Revisa la unidad de: {cost.missingConversions.join(', ')}. No pudimos convertirla al
-              inventario.
+              Revisa la unidad de: {cost.missingConversions.join(', ')}. No pudimos convertirla a
+              la unidad base del ingrediente.
             </p>
           )}
         </InfoNote>
@@ -359,37 +366,13 @@ export function RecipeDetailPage() {
           </span>
         </p>
 
-        {gaps.length > 0 ? (
-          <div className="mt-3 rounded-2xl border border-caramel/30 bg-butter/25 p-3">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-[12px] font-semibold text-[#7a4515]">Te falta comprar ({money(gapCost)})</p>
-              <button
-                type="button"
-                onClick={() => void copyShoppingList()}
-                className="flex items-center gap-1 rounded-full bg-white/70 px-2.5 py-1 text-[11px] font-semibold text-cocoa"
-              >
-                <Icon name="copy" className="h-3 w-3" /> Copiar
-              </button>
-            </div>
-            <ul className="mt-1.5 space-y-1">
-              {gaps.map((gap) => (
-                <li key={gap.ingredient.id} className="flex justify-between gap-2 text-[12px] text-[#7a4515]">
-                  <span className="truncate">{gap.ingredient.name}</span>
-                  <span className="shrink-0 font-semibold">
-                    {formatBase(gap.missingBase, gap.ingredient.baseUnit)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-            <Link to="/compras" className="mt-2 inline-flex items-center gap-1 text-[11.5px] font-semibold text-terra">
-              Registrar compras <Icon name="chevronRight" className="h-3 w-3" />
-            </Link>
-          </div>
-        ) : (
-          <p className="mt-2 flex items-center gap-1.5 text-[11.5px] font-medium text-sage">
-            <Icon name="check" className="h-3.5 w-3.5" /> Tienes stock para esta cantidad.
-          </p>
-        )}
+        <p className="mt-2 flex items-start gap-1.5 text-[11.5px] leading-snug text-ink/45">
+          <Icon name="info" className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>
+            La lista de compra y el costo se ajustan a esta cantidad. Registra lo que pagaste en
+            “Registrar tanda”.
+          </span>
+        </p>
       </Card>
 
       {/* Ingredientes */}
@@ -472,6 +455,112 @@ export function RecipeDetailPage() {
         )}
       </Card>
 
+      {/* Lista de compra */}
+      <Card>
+        <SectionTitle
+          action={
+            <div className="flex items-center gap-1.5">
+              {checkedCount > 0 && (
+                <button
+                  type="button"
+                  onClick={clearRecipeChecks}
+                  className="rounded-full px-2 py-1 text-[11px] font-semibold text-ink/45"
+                >
+                  Desmarcar
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => void copyShoppingList()}
+                className="flex items-center gap-1 rounded-full bg-cream-deep px-2.5 py-1 text-[11px] font-semibold text-cocoa"
+              >
+                <Icon name="copy" className="h-3 w-3" /> Copiar
+              </button>
+            </div>
+          }
+        >
+          Lista de compra
+        </SectionTitle>
+        <p className="text-[11.5px] leading-snug text-ink/45">
+          Para {formatCookQty(cost.units)} {recipe.yieldLabel}.{' '}
+          {checkedCount > 0
+            ? `${checkedCount} de ${shoppingItems.length} ya en casa.`
+            : 'Marca lo que ya tienes en casa.'}
+        </p>
+        <ul className="mt-1 divide-y divide-sand/50">
+          {shoppingItems.map((item) => {
+            const key = `${recipe.id}:${item.ingredient.id}`
+            const checked = Boolean(state.shoppingChecks[key])
+            return (
+              <li key={item.ingredient.id}>
+                <label className="flex cursor-pointer items-start gap-3 py-2.5">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleShopping(key)}
+                    className="mt-0.5 h-5 w-5 shrink-0 accent-terra"
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span
+                      className={cn(
+                        'block text-[13.5px] font-medium',
+                        checked && 'text-ink/40 line-through',
+                      )}
+                    >
+                      {item.ingredient.name}
+                    </span>
+                    <span className="block text-[11px] text-ink/45">
+                      Necesitas {formatBase(item.neededBase, item.ingredient.baseUnit)} ·{' '}
+                      {item.packs} {item.packs === 1 ? 'paquete' : 'paquetes'} de{' '}
+                      {formatCookQty(item.ingredient.packQty)}{' '}
+                      {unitLabel(item.ingredient.packUnit, item.ingredient)}
+                    </span>
+                  </span>
+                </label>
+              </li>
+            )
+          })}
+        </ul>
+        {shoppingItems.length === 0 && (
+          <p className="py-3 text-center text-[12px] text-ink/40">
+            Agrega ingredientes a la receta para generar la lista.
+          </p>
+        )}
+      </Card>
+
+      {/* Tandas registradas */}
+      {recentBatches.length > 0 && (
+        <Card>
+          <SectionTitle
+            action={
+              <span className="text-[11px] text-ink/40">
+                {recentBatches.length} registrada{recentBatches.length === 1 ? '' : 's'}
+              </span>
+            }
+          >
+            Tandas registradas
+          </SectionTitle>
+          <ul className="divide-y divide-sand/50">
+            {recentBatches.map((batch) => (
+              <li key={batch.id} className="py-2.5">
+                <div className="flex items-baseline justify-between gap-2">
+                  <p className="truncate text-[13px] font-medium">
+                    {formatDateShort(batch.date)} · {formatCookQty(batch.units)} {recipe.yieldLabel}
+                  </p>
+                  <p className="shrink-0 text-[12.5px] font-semibold">{money(batch.totalCost)}</p>
+                </div>
+                <p className="text-[11px] leading-snug text-ink/45">
+                  Costo {money(batch.totalCost / Math.max(batch.units, 1))} c/u · Venta{' '}
+                  {money(batch.pricePerUnit)}
+                  {batch.spent ? ` · Pagaste ${money(batch.spent)}` : ''}
+                  {batch.notes ? ` · ${batch.notes}` : ''}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
       {/* Pasos */}
       {recipe.steps.length > 0 && (
         <Card>
@@ -547,8 +636,8 @@ export function RecipeDetailPage() {
 
       {/* Acciones */}
       <div className="grid grid-cols-2 gap-2">
-        <Button size="lg" onClick={() => setBakeOpen(true)}>
-          <Icon name="flame" className="h-4 w-4" /> Hornear
+        <Button size="lg" onClick={() => setTandaOpen(true)}>
+          <Icon name="flame" className="h-4 w-4" /> Registrar tanda
         </Button>
         <Link to={`/promo?recipe=${recipe.id}`}>
           <Button size="lg" variant="secondary" block>
@@ -561,75 +650,12 @@ export function RecipeDetailPage() {
         Actualizada {new Date(recipe.updatedAt).toLocaleDateString('es-PA', { day: 'numeric', month: 'long' })}
       </p>
 
-      <Sheet
-        open={bakeOpen}
-        onClose={() => setBakeOpen(false)}
-        title="Registrar horneada"
-        subtitle={`${recipe.name} · ${formatCookQty(cost.units)} ${recipe.yieldLabel}`}
-        footer={
-          <div className="grid grid-cols-2 gap-2">
-            <Button variant="secondary" onClick={() => setBakeOpen(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={registerBake}>
-              <Icon name="check" className="h-4 w-4" /> Confirmar
-            </Button>
-          </div>
-        }
-      >
-        <div className="space-y-3">
-          <div className="grid grid-cols-3 gap-2 rounded-2xl bg-white/70 p-3 text-center">
-            <div>
-              <p className="text-[10px] uppercase tracking-wide text-ink/40">Unidades</p>
-              <p className="font-display text-lg font-semibold">{formatCookQty(cost.units)}</p>
-            </div>
-            <div>
-              <p className="text-[10px] uppercase tracking-wide text-ink/40">Costo</p>
-              <p className="font-display text-lg font-semibold">{money(cost.totalCost)}</p>
-            </div>
-            <div>
-              <p className="text-[10px] uppercase tracking-wide text-ink/40">Venta</p>
-              <p className="font-display text-lg font-semibold">{money(cost.totalRevenue)}</p>
-            </div>
-          </div>
-
-          <label className="flex items-start gap-3 rounded-2xl border border-sand bg-white/70 p-3">
-            <input
-              type="checkbox"
-              checked={deduct}
-              onChange={(event) => setDeduct(event.target.checked)}
-              className="mt-0.5 h-5 w-5 accent-terra"
-            />
-            <span>
-              <span className="block text-[13px] font-semibold">Descontar del inventario</span>
-              <span className="block text-[11.5px] leading-snug text-ink/50">
-                Resta los ingredientes usados según la cantidad escalada.
-              </span>
-            </span>
-          </label>
-
-          {gaps.length > 0 && (
-            <InfoNote tone="warn" icon="alert">
-              Te faltan {gaps.length} ingredientes para esta tanda. Puedes registrar la horneada igual,
-              pero el inventario quedará en cero en esos productos.
-            </InfoNote>
-          )}
-
-          <div>
-            <label className="mb-1.5 block text-[12px] font-semibold text-ink/65" htmlFor="bake-notes">
-              Notas (opcional)
-            </label>
-            <textarea
-              id="bake-notes"
-              value={bakeNotes}
-              onChange={(event) => setBakeNotes(event.target.value)}
-              placeholder="Ej.: quedaron 2 extra, horno a 175 °C…"
-              className="w-full rounded-2xl border border-sand bg-white px-3.5 py-2.5 text-[16px] outline-none focus:border-caramel focus:ring-4 focus:ring-caramel/15"
-              rows={2}
-            />
-          </div>
-        </div>
-      </Sheet>
+      <TandaSheet
+        open={tandaOpen}
+        onClose={() => setTandaOpen(false)}
+        recipe={recipe}
+        units={cost.units}
+      />
     </div>
   )
 }

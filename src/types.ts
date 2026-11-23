@@ -146,6 +146,19 @@ export interface Purchase {
   note?: string
 }
 
+/** Precio y presentación usados en una tanda concreta. */
+export interface BatchItem {
+  ingredientId: string
+  name: string
+  /** Precio pagado por el paquete o presentación. */
+  price: number
+  /** Cantidad que traía ese paquete. */
+  packQty: number
+  packUnit: StandardUnit
+  /** Costo proporcional a lo usado en la tanda. */
+  cost: number
+}
+
 export interface Batch {
   id: string
   date: string
@@ -155,6 +168,12 @@ export interface Batch {
   units: number
   totalCost: number
   pricePerUnit: number
+  /** Dinero desembolsado en la compra de esta tanda. */
+  spent?: number
+  /** Costo de los ingredientes usados, sin mano de obra ni empaques. */
+  ingredientsCost?: number
+  /** Precios y presentaciones registrados para esta tanda. */
+  items?: BatchItem[]
   notes?: string
 }
 

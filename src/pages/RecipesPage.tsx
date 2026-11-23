@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useApp } from '../store/store'
-import { computeRecipeCost, ingredientValue, money, percent, pricePerBase } from '../lib/cost'
+import { computeRecipeCost, money, percent } from '../lib/cost'
 import { formatCookQty } from '../lib/units'
 import { CATEGORY_GRADIENTS, RECIPE_CATEGORIES, recipeCategoryLabel } from '../lib/labels'
 import { Badge, Card, Chip, EmptyState, IconButton, Stat, cn, inputClass } from '../components/ui'
@@ -22,12 +22,6 @@ export function RecipesPage() {
     [recipes, ingredients, settings],
   )
 
-  const lowStock = ingredients.filter((i) => !i.archived && i.stock <= i.minStock && i.minStock > 0)
-  const restockCost = lowStock.reduce(
-    (sum, i) => sum + Math.max(0, i.minStock - i.stock) * pricePerBase(i),
-    0,
-  )
-
   const averageMargin = useMemo(() => {
     const values = recipes
       .map((r) => costs.get(r.id)?.marginRealPct ?? 0)
@@ -36,7 +30,6 @@ export function RecipesPage() {
     return values.reduce((a, b) => a + b, 0) / values.length
   }, [recipes, costs])
 
-  const inventoryValue = ingredients.reduce((sum, i) => sum + ingredientValue(i), 0)
   const estimatedCount = ingredients.filter((i) => i.priceEstimated).length
 
   const filtered = useMemo(() => {
@@ -82,39 +75,22 @@ export function RecipesPage() {
       <div className="mb-4 grid grid-cols-3 gap-2">
         <Stat label="Recetas" value={String(recipes.length)} icon="book" />
         <Stat
-          label="Inventario"
-          value={money(inventoryValue)}
+          label="Ingredientes"
+          value={String(ingredients.length)}
           icon="box"
-          hint={`${ingredients.length} ingredientes`}
+          hint="precios y paquetes"
         />
         <Stat
-          label="Por reponer"
-          value={String(lowStock.length)}
+          label="Sin precio"
+          value={String(estimatedCount)}
           icon="alert"
-          tone={lowStock.length > 0 ? 'warn' : 'good'}
-          hint={lowStock.length > 0 ? money(restockCost) : 'Todo al día'}
+          tone={estimatedCount > 0 ? 'warn' : 'good'}
+          hint={estimatedCount > 0 ? 'por confirmar' : 'Todo al día'}
         />
       </div>
 
-      {lowStock.length > 0 && (
-        <Link to="/inventario" className="mb-3 block">
-          <div className="flex items-center gap-3 rounded-2xl border border-caramel/30 bg-butter/40 px-3.5 py-3">
-            <Icon name="alert" className="h-5 w-5 shrink-0 text-terra" />
-            <div className="min-w-0 flex-1">
-              <p className="text-[13px] font-semibold text-[#7a4515]">
-                {lowStock.length} {lowStock.length === 1 ? 'ingrediente' : 'ingredientes'} por reponer
-              </p>
-              <p className="truncate text-[11.5px] text-[#7a4515]/70">
-                {lowStock.slice(0, 3).map((i) => i.name).join(' · ')}
-              </p>
-            </div>
-            <Icon name="chevronRight" className="h-4 w-4 text-[#7a4515]/60" />
-          </div>
-        </Link>
-      )}
-
       {estimatedCount > 0 && (
-        <Link to="/compras" className="mb-4 block">
+        <Link to="/inventario" className="mb-4 block">
           <div className="flex items-center gap-3 rounded-2xl border border-sand bg-white/60 px-3.5 py-3">
             <Icon name="info" className="h-5 w-5 shrink-0 text-cocoa/60" />
             <p className="flex-1 text-[12px] leading-snug text-ink/60">

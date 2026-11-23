@@ -1,8 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useReducer, type ReactNode } from 'react'
 import type { AppState, Batch, Ingredient, Purchase, Recipe, Settings } from '../types'
 import { DEFAULT_SETTINGS, SEED_PACKAGING, seedState } from '../data/seed'
-import { deductIngredients } from '../lib/cost'
-import { toBase } from '../lib/units'
 
 const STORAGE_KEY = 'bakemetrics.state.v1'
 const CURRENT_VERSION = 2
@@ -10,18 +8,16 @@ const CURRENT_VERSION = 2
 type Action =
   | { type: 'upsertIngredient'; ingredient: Ingredient }
   | { type: 'deleteIngredient'; id: string }
-  | { type: 'setStock'; id: string; stock: number }
   | { type: 'upsertRecipe'; recipe: Recipe }
   | { type: 'deleteRecipe'; id: string }
   | { type: 'addPurchase'; purchase: Purchase }
   | { type: 'deletePurchase'; id: string }
-  | { type: 'addBatch'; batch: Batch; recipe: Recipe; factor: number; deduct: boolean }
+  | { type: 'addBatch'; batch: Batch }
   | { type: 'updateSettings'; settings: Partial<Settings> }
   | { type: 'replaceState'; state: AppState }
   | { type: 'reset' }
   | { type: 'wipe' }
   | { type: 'toggleShopping'; key: string }
-  | { type: 'clearShopping' }
 
 function normalizeState(input: unknown): AppState | null {
   if (!input || typeof input !== 'object') return null
@@ -89,13 +85,6 @@ function reducer(state: AppState, action: Action): AppState {
           lines: r.lines.filter((l) => l.ingredientId !== action.id),
         })),
       }
-    case 'setStock':
-      return {
-        ...state,
-        ingredients: state.ingredients.map((i) =>
-          i.id === action.id ? { ...i, stock: Math.max(0, action.stock) } : i,
-        ),
-      }
     case 'upsertRecipe': {
       const exists = state.recipes.some((r) => r.id === action.recipe.id)
       return {
@@ -114,7 +103,6 @@ function reducer(state: AppState, action: Action): AppState {
         purchases: [p, ...state.purchases],
         ingredients: state.ingredients.map((ing) => {
           if (ing.id !== p.ingredientId) return ing
-          const baseQty = toBase(p.qty, p.unit, ing)
           const next: Ingredient = {
             ...ing,
             packPrice: p.total,
@@ -122,7 +110,6 @@ function reducer(state: AppState, action: Action): AppState {
             packUnit: p.unit,
             priceEstimated: false,
             lastPurchaseAt: p.date,
-            stock: Math.max(0, ing.stock + (baseQty ?? 0)),
           }
           if (p.supplier) next.supplier = p.supplier
           return next
@@ -135,9 +122,6 @@ function reducer(state: AppState, action: Action): AppState {
       return {
         ...state,
         batches: [action.batch, ...state.batches].slice(0, 200),
-        ingredients: action.deduct
-          ? deductIngredients(state.ingredients, action.recipe, action.factor)
-          : state.ingredients,
       }
     case 'updateSettings':
       return { ...state, settings: { ...state.settings, ...action.settings } }
@@ -163,8 +147,6 @@ function reducer(state: AppState, action: Action): AppState {
           [action.key]: !state.shoppingChecks[action.key],
         },
       }
-    case 'clearShopping':
-      return { ...state, shoppingChecks: {} }
     default:
       return state
   }
@@ -174,18 +156,16 @@ interface AppContextValue {
   state: AppState
   upsertIngredient: (ingredient: Ingredient) => void
   deleteIngredient: (id: string) => void
-  setStock: (id: string, stock: number) => void
   upsertRecipe: (recipe: Recipe) => void
   deleteRecipe: (id: string) => void
   addPurchase: (purchase: Purchase) => void
   deletePurchase: (id: string) => void
-  addBatch: (batch: Batch, recipe: Recipe, factor: number, deduct: boolean) => void
+  addBatch: (batch: Batch) => void
   updateSettings: (settings: Partial<Settings>) => void
   importState: (raw: string) => { ok: boolean; error?: string }
   resetDemo: () => void
   wipeData: () => void
   toggleShopping: (key: string) => void
-  clearShopping: () => void
   exportJson: () => string
 }
 
@@ -207,13 +187,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       state,
       upsertIngredient: (ingredient) => dispatch({ type: 'upsertIngredient', ingredient }),
       deleteIngredient: (id) => dispatch({ type: 'deleteIngredient', id }),
-      setStock: (id, stock) => dispatch({ type: 'setStock', id, stock }),
       upsertRecipe: (recipe) => dispatch({ type: 'upsertRecipe', recipe }),
       deleteRecipe: (id) => dispatch({ type: 'deleteRecipe', id }),
       addPurchase: (purchase) => dispatch({ type: 'addPurchase', purchase }),
       deletePurchase: (id) => dispatch({ type: 'deletePurchase', id }),
-      addBatch: (batch, recipe, factor, deduct) =>
-        dispatch({ type: 'addBatch', batch, recipe, factor, deduct }),
+      addBatch: (batch) => dispatch({ type: 'addBatch', batch }),
       updateSettings: (settings) => dispatch({ type: 'updateSettings', settings }),
       importState: (raw) => {
         try {
@@ -228,7 +206,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       resetDemo: () => dispatch({ type: 'reset' }),
       wipeData: () => dispatch({ type: 'wipe' }),
       toggleShopping: (key) => dispatch({ type: 'toggleShopping', key }),
-      clearShopping: () => dispatch({ type: 'clearShopping' }),
       exportJson: () => JSON.stringify(state, null, 2),
     }),
     [state],

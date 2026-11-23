@@ -1,6 +1,6 @@
 # BakeMetrics
 
-Aplicación web para repostería casera: recetas, costos reales, inventario, precios de venta con ITBMS (Panamá) y arte promocional para redes sociales.
+Aplicación web para repostería casera: recetas, costos reales por tanda, precios de venta con ITBMS (Panamá) y arte promocional para redes sociales.
 
 Pensada para usarse desde el teléfono y publicarse gratis en GitHub Pages.
 
@@ -10,9 +10,10 @@ Pensada para usarse desde el teléfono y publicarse gratis en GitHub Pages.
 - **Costos completos**: ingredientes, merma, mano de obra, empaque, gas/extras y gastos indirectos.
 - **Precio de venta** automático por margen (o precio manual) con ITBMS configurable y redondeo a $0.05, $0.10, $0.25, etc.
 - **Escalado** de tandas: 0.5×, 1×, 2×, 3× o la cantidad exacta de unidades que quieras producir.
-- **Inventario** con existencias, mínimos, alertas de reposición y valor del inventario.
-- **Compras** manuales o leyendo una foto de factura (OCR) para actualizar precios y stock.
-- **Horneadas**: registra una tanda y descuenta los ingredientes del inventario.
+- **Ingredientes** con precio, presentación del paquete y equivalencias; sin inventario global que mantener.
+- **Compras** manuales o leyendo una foto de factura (OCR) para actualizar el precio de referencia.
+- **Registrar tanda**: muestra los ingredientes con su paquete para anotar lo que pagaste, calcula el costo real y guarda la fecha y las unidades producidas.
+- **Lista de compra por receta** con casillas para marcar lo que ya tienes en casa.
 - **Promociones**: genera imágenes de 1080×1080, 1080×1920 y 1080×1350 con tu marca, precio y datos de contacto; descárgalas o compártelas desde el teléfono.
 - **Datos locales**: todo se guarda en el navegador (`localStorage`). Incluye exportar/importar respaldo JSON y reiniciar datos.
 - **PWA**: se puede instalar en el teléfono y funciona sin conexión después de la primera visita.
@@ -75,7 +76,7 @@ src/
   components/   UI reutilizable (botones, hojas, formularios, iconos)
   data/         Datos iniciales de ingredientes y recetas
   lib/          Costos, unidades, OCR, generación de imágenes, utilidades
-  pages/        Recetario, receta, inventario, compras, promo y ajustes
+  pages/        Recetario, receta, ingredientes, compras, promo y ajustes
   store/        Estado global y persistencia en localStorage
   types.ts      Modelos de datos
 ```

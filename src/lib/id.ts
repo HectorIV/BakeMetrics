@@ -8,6 +8,14 @@ export function todayISO(): string {
   return new Date().toISOString()
 }
 
+/** Fecha local en formato YYYY-MM-DD para <input type="date">. */
+export function todayInputValue(): string {
+  const date = new Date()
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(
+    date.getDate(),
+  ).padStart(2, '0')}`
+}
+
 export function formatDate(iso: string): string {
   if (!iso) return '—'
   const date = new Date(iso)

@@ -5,7 +5,7 @@ import type { ReactNode } from 'react'
 
 const NAV: { to: string; label: string; icon: IconName }[] = [
   { to: '/', label: 'Recetas', icon: 'book' },
-  { to: '/inventario', label: 'Inventario', icon: 'box' },
+  { to: '/inventario', label: 'Ingredientes', icon: 'box' },
   { to: '/compras', label: 'Compras', icon: 'cart' },
   { to: '/promo', label: 'Promo', icon: 'sparkles' },
   { to: '/ajustes', label: 'Ajustes', icon: 'settings' },

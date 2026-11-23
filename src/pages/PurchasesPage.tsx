@@ -104,7 +104,7 @@ export function PurchasesPage() {
       <PageHeader
         eyebrow="Compras"
         title="Precios y facturas"
-        subtitle="Registra lo que pagaste y el inventario se actualiza solo."
+        subtitle="Registra lo que pagaste y actualiza el precio del ingrediente."
         actions={
           <Button size="sm" variant="secondary" onClick={() => setOcrOpen(true)}>
             <Icon name="camera" className="h-4 w-4" /> Escanear
@@ -126,17 +126,17 @@ export function PurchasesPage() {
         <EmptyState
           icon="basket"
           title="Primero crea tus ingredientes"
-          description="Cada compra actualiza el precio de referencia de un ingrediente. Crea al menos uno en Inventario."
+          description="Cada factura actualiza el precio de un ingrediente. Crea al menos uno en Ingredientes."
           action={
             <Link to="/inventario">
-              <Button>Ir a Inventario</Button>
+              <Button>Ir a Ingredientes</Button>
             </Link>
           }
         />
       ) : (
         <Card className="mb-4 space-y-3">
           <SectionTitle
-            action={<span className="text-[10.5px] text-ink/40">Actualiza precio + stock</span>}
+            action={<span className="text-[10.5px] text-ink/40">Actualiza el precio</span>}
           >
             Nueva compra
           </SectionTitle>
@@ -205,8 +205,7 @@ export function PurchasesPage() {
           </Button>
 
           <p className="text-center text-[10.5px] leading-snug text-ink/35">
-            Al guardar, este precio pasa a ser el costo de referencia del ingrediente y la cantidad
-            se suma al inventario.
+            Al guardar, este precio pasa a ser el costo de referencia del ingrediente.
           </p>
         </Card>
       )}
@@ -245,7 +244,7 @@ export function PurchasesPage() {
                       onClick={() => {
                         if (
                           window.confirm(
-                            '¿Eliminar esta compra del historial? El inventario y el precio no se revierten.',
+                            '¿Eliminar esta compra del historial? El precio del ingrediente no se revierte.',
                           )
                         ) {
                           deletePurchase(purchase.id)
@@ -498,7 +497,7 @@ function OcrSheet({
         {rows.length > 0 && (
           <p className="text-center text-[10.5px] leading-snug text-ink/35">
             Al tocar “Usar”, el precio se carga abajo. Confirma la cantidad del paquete antes de
-            guardar. Si falta un ingrediente, créalo en Inventario.
+            guardar. Si falta un ingrediente, créalo en Ingredientes.
           </p>
         )}
       </div>

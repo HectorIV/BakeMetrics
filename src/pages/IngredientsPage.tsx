@@ -2,8 +2,8 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useApp } from '../store/store'
 import type { BaseUnit, Ingredient, IngredientCategory } from '../types'
-import { ingredientValue, money, pricePerBaseLabel } from '../lib/cost'
-import { formatBase, formatCookQty, toBase, trim, baseUnitName, STANDARD_UNITS } from '../lib/units'
+import { money, pricePerBaseLabel } from '../lib/cost'
+import { formatCookQty, toBase, trim, baseUnitName, STANDARD_UNITS, unitLabel } from '../lib/units'
 import { INGREDIENT_CATEGORIES, ingredientCategoryLabel } from '../lib/labels'
 import {
   Badge,
@@ -68,8 +68,8 @@ export function IngredientsPage() {
     })
   }, [ingredients, query, category])
 
-  const totalValue = ingredients.reduce((sum, ingredient) => sum + ingredientValue(ingredient), 0)
-  const lowStock = ingredients.filter((i) => i.minStock > 0 && i.stock <= i.minStock)
+  const totalWithPrice = ingredients.filter((ingredient) => ingredient.packPrice > 0).length
+  const estimated = ingredients.filter((ingredient) => ingredient.priceEstimated).length
   const usedCategories = INGREDIENT_CATEGORIES.filter((c) =>
     ingredients.some((i) => i.category === c.id),
   )
@@ -115,7 +115,7 @@ export function IngredientsPage() {
     )
     const message = usedIn.length
       ? `"${draft.name}" se usa en ${usedIn.length} receta(s). Se quitará de ellas. ¿Eliminar?`
-      : `¿Eliminar "${draft.name}" del inventario?`
+      : `¿Eliminar "${draft.name}" de tus ingredientes?`
     if (window.confirm(message)) {
       deleteIngredient(draft.id)
       toast('Ingrediente eliminado')
@@ -126,37 +126,24 @@ export function IngredientsPage() {
   return (
     <div>
       <PageHeader
-        eyebrow="Inventario"
-        title="Ingredientes"
-        subtitle={`${ingredients.length} ingredientes · ${money(totalValue)} en existencia`}
+        eyebrow="Ingredientes"
+        title="Precios y paquetes"
+        subtitle={`${ingredients.length} ingredientes · ${totalWithPrice} con precio`}
         actions={
           <IconButton icon="plus" label="Nuevo ingrediente" className="border-terra bg-terra text-white" onClick={openNew} />
         }
       />
 
       <div className="mb-4 grid grid-cols-3 gap-2">
-        <Stat label="Valor" value={money(totalValue)} icon="wallet" />
+        <Stat label="Ingredientes" value={String(ingredients.length)} icon="box" />
+        <Stat label="Con precio" value={String(totalWithPrice)} icon="wallet" tone="good" />
         <Stat
-          label="Por reponer"
-          value={String(lowStock.length)}
+          label="Por confirmar"
+          value={String(estimated)}
           icon="alert"
-          tone={lowStock.length > 0 ? 'warn' : 'good'}
+          tone={estimated > 0 ? 'warn' : 'good'}
         />
-        <Stat label="Horneadas" value={String(state.batches.length)} icon="flame" />
       </div>
-
-      {lowStock.length > 0 && (
-        <div className="mb-3">
-          <InfoNote tone="warn" icon="alert">
-            <b>{lowStock.length} por reponer:</b>{' '}
-            {lowStock
-              .slice(0, 4)
-              .map((i) => i.name)
-              .join(' · ')}
-            {lowStock.length > 4 ? '…' : ''}
-          </InfoNote>
-        </div>
-      )}
 
       <div className="relative mb-3">
         <Icon name="search" className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink/30" />
@@ -187,10 +174,10 @@ export function IngredientsPage() {
       {filtered.length === 0 ? (
         <EmptyState
           icon="box"
-          title={ingredients.length === 0 ? 'Tu inventario está vacío' : 'No encontramos ingredientes'}
+          title={ingredients.length === 0 ? 'Aún no hay ingredientes' : 'No encontramos ingredientes'}
           description={
             ingredients.length === 0
-              ? 'Crea tus ingredientes con el precio del paquete. Con eso calculamos el costo de cada receta.'
+              ? 'Agrega cada ingrediente con el precio y el tamaño del paquete que compras. Con eso calculamos el costo de tus recetas.'
               : 'Prueba con otra búsqueda o cambia la categoría.'
           }
           action={
@@ -202,8 +189,6 @@ export function IngredientsPage() {
       ) : (
         <div className="space-y-2">
           {filtered.map((ingredient) => {
-            const low = ingredient.minStock > 0 && ingredient.stock <= ingredient.minStock
-            const ratio = ingredient.minStock > 0 ? Math.min(1, ingredient.stock / (ingredient.minStock * 2)) : 1
             return (
               <button
                 key={ingredient.id}
@@ -217,7 +202,6 @@ export function IngredientsPage() {
                       <h3 className="truncate font-display text-[15px] font-semibold">{ingredient.name}</h3>
                       {ingredient.free && <Badge tone="neutral">sin costo</Badge>}
                       {ingredient.priceEstimated && <Badge tone="warn">referencia</Badge>}
-                      {low && <Badge tone="bad">reponer</Badge>}
                     </div>
                     <p className="mt-0.5 text-[11px] text-ink/45">
                       {ingredientCategoryLabel(ingredient.category)} · {pricePerBaseLabel(ingredient)}
@@ -226,24 +210,14 @@ export function IngredientsPage() {
                   <Icon name="chevronRight" className="mt-1 h-4 w-4 shrink-0 text-ink/25" />
                 </div>
 
-                <div className="mt-2 flex items-end justify-between gap-3">
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-ink/35">Existencia</p>
-                    <p className={cn('text-[14px] font-semibold', low && 'text-berry')}>
-                      {formatBase(ingredient.stock, ingredient.baseUnit)}
-                    </p>
-                  </div>
-                  <div className="w-32">
-                    <div className="h-1.5 overflow-hidden rounded-full bg-sand/60">
-                      <div
-                        className={cn('h-full rounded-full', low ? 'bg-berry/70' : 'bg-sage/70')}
-                        style={{ width: `${Math.max(4, ratio * 100)}%` }}
-                      />
-                    </div>
-                    <p className="mt-1 text-right text-[10px] text-ink/35">
-                      Mín. {formatBase(ingredient.minStock, ingredient.baseUnit)}
-                    </p>
-                  </div>
+                <div className="mt-2 flex items-center justify-between gap-3 rounded-xl bg-cream-deep/50 px-3 py-2">
+                  <p className="text-[11.5px] text-ink/50">
+                    Paquete: {formatCookQty(ingredient.packQty)}{' '}
+                    {unitLabel(ingredient.packUnit, ingredient)}
+                  </p>
+                  <p className="text-[12.5px] font-semibold">
+                    {ingredient.free ? 'Sin costo' : ingredient.packPrice > 0 ? money(ingredient.packPrice) : 'Sin precio'}
+                  </p>
                 </div>
               </button>
             )
@@ -254,14 +228,14 @@ export function IngredientsPage() {
       <div className="mt-4">
         <Link to="/compras">
           <Button variant="secondary" block>
-            <Icon name="cart" className="h-4 w-4" /> Registrar una compra
+            <Icon name="cart" className="h-4 w-4" /> Actualizar precio con factura
           </Button>
         </Link>
       </div>
 
       {state.batches.length > 0 && (
         <div className="mt-6">
-          <SectionTitle>Horneadas recientes</SectionTitle>
+          <SectionTitle>Tandas recientes</SectionTitle>
           <div className="space-y-1.5">
             {state.batches.slice(0, 5).map((batch) => (
               <div
@@ -323,7 +297,7 @@ function IngredientSheet({
       open
       onClose={onClose}
       title={isNew ? 'Nuevo ingrediente' : 'Editar ingrediente'}
-      subtitle="Precio, existencia y equivalencias"
+      subtitle="Precio, paquete y equivalencias"
       footer={
         <div className={cn('grid gap-2', isNew ? 'grid-cols-1' : 'grid-cols-[1fr,1.6fr]')}>
           {!isNew && (
@@ -360,7 +334,7 @@ function IngredientSheet({
               ))}
             </Select>
           </Field>
-          <Field label="Se mide en" hint="Unidad del inventario">
+          <Field label="Se mide en" hint="Unidad base de la receta">
             <Select
               value={draft.baseUnit}
               onChange={(event) => {
@@ -437,19 +411,6 @@ function IngredientSheet({
               hint="Agua, hielo u otros ingredientes gratuitos."
             />
           </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <Field label={`Existencia (${baseUnitName(draft.baseUnit)})`} htmlFor="stock">
-            <QtyInput id="stock" value={draft.stock} onChange={(value) => update({ stock: value })} />
-          </Field>
-          <Field label={`Mínimo (${baseUnitName(draft.baseUnit)})`} htmlFor="min-stock">
-            <QtyInput
-              id="min-stock"
-              value={draft.minStock}
-              onChange={(value) => update({ minStock: value })}
-            />
-          </Field>
         </div>
 
         {draft.baseUnit === 'g' && (
@@ -578,8 +539,8 @@ function IngredientSheet({
         </Field>
 
         <InfoNote>
-          El precio y la existencia se actualizan automáticamente cuando registras una compra en{' '}
-          <b>Compras</b>.
+          El precio y el paquete se actualizan automáticamente cuando registras una compra en{' '}
+          <b>Compras</b> o una tanda en la receta.
         </InfoNote>
       </div>
     </Sheet>
