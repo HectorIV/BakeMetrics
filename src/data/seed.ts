@@ -737,5 +737,8 @@ export function seedState(): AppState {
     batches: [],
     settings: DEFAULT_SETTINGS,
     shoppingChecks: {},
+    recipeStock: {},
+    recipeExtras: {},
+    recipePurchases: {},
   }
 }

@@ -12,8 +12,8 @@ Pensada para usarse desde el teléfono y publicarse gratis en GitHub Pages.
 - **Escalado** de tandas: 0.5×, 1×, 2×, 3× o la cantidad exacta de unidades que quieras producir.
 - **Ingredientes** con precio, presentación del paquete y equivalencias; sin inventario global que mantener.
 - **Compras** manuales o leyendo una foto de factura (OCR) para actualizar el precio de referencia.
-- **Registrar tanda**: muestra los ingredientes con su paquete para anotar lo que pagaste, calcula el costo real y guarda la fecha y las unidades producidas.
-- **Lista de compra por receta** con casillas para marcar lo que ya tienes en casa.
+- **Gestión por receta**: cada receta tiene su propio inventario (lo que tienes), su lista de compra con precio por paquete, sus empaques/envases y líneas libres (“otras cosas”), y su historial de compras.
+- **Registrar tanda**: muestra los ingredientes con su paquete para anotar lo que pagaste, calcula el costo real, guarda la fecha y las unidades, y descuenta del inventario de esa receta.
 - **Promociones**: genera imágenes de 1080×1080, 1080×1920 y 1080×1350 con tu marca, precio y datos de contacto; descárgalas o compártelas desde el teléfono.
 - **Datos locales**: todo se guarda en el navegador (`localStorage`). Incluye exportar/importar respaldo JSON y reiniciar datos.
 - **PWA**: se puede instalar en el teléfono y funciona sin conexión después de la primera visita.

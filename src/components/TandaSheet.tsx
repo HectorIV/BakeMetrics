@@ -52,7 +52,7 @@ export function TandaSheet({
   /** Unidades según el escalado actual de la receta. */
   units: number
 }) {
-  const { state, addBatch, upsertIngredient } = useApp()
+  const { state, addBatch, upsertIngredient, addRecipeStock } = useApp()
   const [date, setDate] = useState(todayInputValue)
   const [units, setUnits] = useState(initialUnits)
   const [notes, setNotes] = useState('')
@@ -186,6 +186,12 @@ export function TandaSheet({
       notes: notes.trim() || undefined,
     }
     addBatch(batch)
+    const usage: Record<string, number> = {}
+    for (const item of usedRows) {
+      if (item.ing.free || item.neededBase <= 0) continue
+      usage[item.ing.id] = -item.neededBase
+    }
+    if (Object.keys(usage).length > 0) addRecipeStock(recipe.id, usage)
     toast(
       `Tanda guardada: ${formatCookQty(units)} ${recipe.yieldLabel} · ${money(cost.costPerUnit)} c/u`,
       'success',

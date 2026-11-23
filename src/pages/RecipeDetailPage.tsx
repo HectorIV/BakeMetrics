@@ -22,6 +22,7 @@ import {
 } from '../components/ui'
 import { Icon } from '../components/Icon'
 import { TandaSheet } from '../components/TandaSheet'
+import { RecipeShopSheet } from '../components/RecipeShopSheet'
 import { toast } from '../lib/toast'
 import { formatDateShort } from '../lib/id'
 import type { Ingredient } from '../types'
@@ -29,12 +30,13 @@ import type { Ingredient } from '../types'
 export function RecipeDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { state, upsertRecipe, toggleShopping } = useApp()
+  const { state, upsertRecipe } = useApp()
   const recipe = state.recipes.find((r) => r.id === id)
 
   const [factor, setFactor] = useState(1)
   const [showBreakdown, setShowBreakdown] = useState(false)
   const [tandaOpen, setTandaOpen] = useState(false)
+  const [shopOpen, setShopOpen] = useState(false)
   const [doneSteps, setDoneSteps] = useState<Record<string, boolean>>({})
 
   const baseCost = useMemo(
@@ -47,6 +49,7 @@ export function RecipeDetailPage() {
   )
   const shoppingItems = useMemo(() => {
     if (!recipe) return []
+    const stock = state.recipeStock[recipe.id] ?? {}
     const ids = [...new Set(recipe.lines.map((line) => line.ingredientId))]
     return ids
       .map((ingredientId) => {
@@ -58,16 +61,24 @@ export function RecipeDetailPage() {
             (sum, line) => sum + (toBase(line.qty * factor, line.unit, ingredient) ?? 0),
             0,
           )
+        const have = stock[ingredientId] ?? 0
+        const faltaBase = Math.max(0, neededBase - have)
         const packBase = toBase(ingredient.packQty, ingredient.packUnit, ingredient)
-        const packs =
-          packBase && packBase > 0 ? Math.max(1, Math.ceil(neededBase / packBase)) : 1
-        return { ingredient, neededBase, packs }
+        const packs = packBase && packBase > 0 ? Math.ceil(faltaBase / packBase) : 0
+        return { ingredient, neededBase, have, faltaBase, packs }
       })
       .filter(
-        (item): item is { ingredient: Ingredient; neededBase: number; packs: number } =>
-          item !== null,
+        (
+          item,
+        ): item is {
+          ingredient: Ingredient
+          neededBase: number
+          have: number
+          faltaBase: number
+          packs: number
+        } => item !== null,
       )
-  }, [recipe, state.ingredients, factor])
+  }, [recipe, state.ingredients, state.recipeStock, factor])
 
   if (!recipe || !cost || !baseCost) {
     return (
@@ -86,22 +97,13 @@ export function RecipeDetailPage() {
   const gradient = CATEGORY_GRADIENTS[recipe.category]
   const hasEstimatedPrices = cost.lines.some((l) => l.ingredient?.priceEstimated)
   const recentBatches = state.batches.filter((batch) => batch.recipeId === recipe.id).slice(0, 5)
-  const checkedCount = shoppingItems.filter(
-    (item) => state.shoppingChecks[`${recipe.id}:${item.ingredient.id}`],
-  ).length
-
-  const clearRecipeChecks = () => {
-    for (const item of shoppingItems) {
-      const key = `${recipe.id}:${item.ingredient.id}`
-      if (state.shoppingChecks[key]) toggleShopping(key)
-    }
-  }
+  const recipePurchases = (state.recipePurchases[recipe.id] ?? []).slice(0, 5)
 
   const copyShoppingList = async () => {
     const text = shoppingItems
       .map(
         (item) =>
-          `• ${item.ingredient.name}: ${formatBase(item.neededBase, item.ingredient.baseUnit)} (${item.packs} ${
+          `• ${item.ingredient.name}: faltan ${formatBase(item.faltaBase, item.ingredient.baseUnit)} (${item.packs} ${
             item.packs === 1 ? 'paquete' : 'paquetes'
           })`,
       )
@@ -455,77 +457,79 @@ export function RecipeDetailPage() {
         )}
       </Card>
 
-      {/* Lista de compra */}
+      {/* Compras e inventario de la receta */}
       <Card>
         <SectionTitle
           action={
             <div className="flex items-center gap-1.5">
-              {checkedCount > 0 && (
-                <button
-                  type="button"
-                  onClick={clearRecipeChecks}
-                  className="rounded-full px-2 py-1 text-[11px] font-semibold text-ink/45"
-                >
-                  Desmarcar
-                </button>
-              )}
               <button
                 type="button"
                 onClick={() => void copyShoppingList()}
-                className="flex items-center gap-1 rounded-full bg-cream-deep px-2.5 py-1 text-[11px] font-semibold text-cocoa"
+                className="flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold text-ink/45"
               >
                 <Icon name="copy" className="h-3 w-3" /> Copiar
+              </button>
+              <button
+                type="button"
+                onClick={() => setShopOpen(true)}
+                className="flex items-center gap-1 rounded-full bg-terra px-2.5 py-1 text-[11px] font-semibold text-white"
+              >
+                <Icon name="cart" className="h-3 w-3" /> Gestionar
               </button>
             </div>
           }
         >
-          Lista de compra
+          Compras e inventario
         </SectionTitle>
         <p className="text-[11.5px] leading-snug text-ink/45">
-          Para {formatCookQty(cost.units)} {recipe.yieldLabel}.{' '}
-          {checkedCount > 0
-            ? `${checkedCount} de ${shoppingItems.length} ya en casa.`
-            : 'Marca lo que ya tienes en casa.'}
+          Para {formatCookQty(cost.units)} {recipe.yieldLabel}. Lo que tienes de esta receta y lo
+          que falta comprar.
         </p>
         <ul className="mt-1 divide-y divide-sand/50">
-          {shoppingItems.map((item) => {
-            const key = `${recipe.id}:${item.ingredient.id}`
-            const checked = Boolean(state.shoppingChecks[key])
-            return (
-              <li key={item.ingredient.id}>
-                <label className="flex cursor-pointer items-start gap-3 py-2.5">
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => toggleShopping(key)}
-                    className="mt-0.5 h-5 w-5 shrink-0 accent-terra"
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span
-                      className={cn(
-                        'block text-[13.5px] font-medium',
-                        checked && 'text-ink/40 line-through',
-                      )}
-                    >
-                      {item.ingredient.name}
-                    </span>
-                    <span className="block text-[11px] text-ink/45">
-                      Necesitas {formatBase(item.neededBase, item.ingredient.baseUnit)} ·{' '}
-                      {item.packs} {item.packs === 1 ? 'paquete' : 'paquetes'} de{' '}
-                      {formatCookQty(item.ingredient.packQty)}{' '}
-                      {unitLabel(item.ingredient.packUnit, item.ingredient)}
-                    </span>
-                  </span>
-                </label>
-              </li>
-            )
-          })}
+          {shoppingItems.map((item) => (
+            <li key={item.ingredient.id} className="flex items-start gap-3 py-2.5">
+              <span className="min-w-0 flex-1">
+                <span className="block text-[13.5px] font-medium">{item.ingredient.name}</span>
+                <span className="block text-[11px] text-ink/45">
+                  Tengo {formatBase(item.have, item.ingredient.baseUnit)} ·{' '}
+                  {item.faltaBase <= 0
+                    ? 'suficiente'
+                    : `faltan ${formatBase(item.faltaBase, item.ingredient.baseUnit)} (${item.packs} paq)`}
+                </span>
+              </span>
+              <span className="shrink-0 text-[12px] font-semibold tabular-nums text-ink/60">
+                {item.ingredient.free ? '—' : money(item.ingredient.packPrice)}
+              </span>
+            </li>
+          ))}
         </ul>
+        {(recipe.packagingItems ?? []).length > 0 && (
+          <ul className="mt-1 divide-y divide-sand/50 border-t border-sand/50">
+            {(recipe.packagingItems ?? []).map((p) => (
+              <li key={p.id} className="flex items-start gap-3 py-2">
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[12.5px] font-medium text-ink/70">{p.name}</span>
+                  <span className="block text-[11px] text-ink/45">
+                    {Math.ceil(cost.units / Math.max(p.coversUnits, 1))} paq · rinde{' '}
+                    {formatCookQty(p.coversUnits)} u
+                  </span>
+                </span>
+                <span className="shrink-0 text-[12px] font-semibold tabular-nums text-ink/60">
+                  {money(p.packPrice)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
         {shoppingItems.length === 0 && (
           <p className="py-3 text-center text-[12px] text-ink/40">
             Agrega ingredientes a la receta para generar la lista.
           </p>
         )}
+        <p className="mt-2 text-[11px] leading-snug text-ink/40">
+          En “Gestionar” anotas precios, envases y otras cosas, y guardas la compra en el
+          inventario de esta receta.
+        </p>
       </Card>
 
       {/* Tandas registradas */}
@@ -554,6 +558,36 @@ export function RecipeDetailPage() {
                   {money(batch.pricePerUnit)}
                   {batch.spent ? ` · Pagaste ${money(batch.spent)}` : ''}
                   {batch.notes ? ` · ${batch.notes}` : ''}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
+      {/* Compras de la receta */}
+      {recipePurchases.length > 0 && (
+        <Card>
+          <SectionTitle
+            action={
+              <span className="text-[11px] text-ink/40">
+                {recipePurchases.length} compra{recipePurchases.length === 1 ? '' : 's'}
+              </span>
+            }
+          >
+            Compras de la receta
+          </SectionTitle>
+          <ul className="divide-y divide-sand/50">
+            {recipePurchases.map((p) => (
+              <li key={p.id} className="py-2.5">
+                <div className="flex items-baseline justify-between gap-2">
+                  <p className="truncate text-[13px] font-medium">
+                    {formatDateShort(p.date)} · {p.lines.length} línea{p.lines.length === 1 ? '' : 's'}
+                  </p>
+                  <p className="shrink-0 text-[12.5px] font-semibold">{money(p.total)}</p>
+                </div>
+                <p className="truncate text-[11px] leading-snug text-ink/45">
+                  {p.lines.map((l) => l.name).join(' · ')}
                 </p>
               </li>
             ))}
@@ -655,6 +689,14 @@ export function RecipeDetailPage() {
         onClose={() => setTandaOpen(false)}
         recipe={recipe}
         units={cost.units}
+      />
+
+      <RecipeShopSheet
+        open={shopOpen}
+        onClose={() => setShopOpen(false)}
+        recipe={recipe}
+        units={cost.units}
+        factor={factor}
       />
     </div>
   )

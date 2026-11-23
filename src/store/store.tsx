@@ -1,5 +1,14 @@
 import { createContext, useContext, useEffect, useMemo, useReducer, type ReactNode } from 'react'
-import type { AppState, Batch, Ingredient, Purchase, Recipe, Settings } from '../types'
+import type {
+  AppState,
+  Batch,
+  Ingredient,
+  Purchase,
+  Recipe,
+  RecipePurchase,
+  Settings,
+  ShoppingExtra,
+} from '../types'
 import { DEFAULT_SETTINGS, SEED_PACKAGING, seedState } from '../data/seed'
 
 const STORAGE_KEY = 'bakemetrics.state.v1'
@@ -18,6 +27,11 @@ type Action =
   | { type: 'reset' }
   | { type: 'wipe' }
   | { type: 'toggleShopping'; key: string }
+  | { type: 'setRecipeStock'; recipeId: string; ingredientId: string; value: number }
+  | { type: 'addRecipeStock'; recipeId: string; adds: Record<string, number> }
+  | { type: 'upsertExtra'; recipeId: string; extra: ShoppingExtra }
+  | { type: 'deleteExtra'; recipeId: string; id: string }
+  | { type: 'addRecipePurchase'; recipeId: string; purchase: RecipePurchase }
 
 function normalizeState(input: unknown): AppState | null {
   if (!input || typeof input !== 'object') return null
@@ -51,6 +65,9 @@ function normalizeState(input: unknown): AppState | null {
     batches: data.batches ?? [],
     settings: { ...DEFAULT_SETTINGS, ...(data.settings ?? {}) },
     shoppingChecks: data.shoppingChecks ?? {},
+    recipeStock: data.recipeStock ?? {},
+    recipeExtras: data.recipeExtras ?? {},
+    recipePurchases: data.recipePurchases ?? {},
   }
 }
 
@@ -138,6 +155,9 @@ function reducer(state: AppState, action: Action): AppState {
         batches: [],
         settings: state.settings,
         shoppingChecks: {},
+        recipeStock: {},
+        recipeExtras: {},
+        recipePurchases: {},
       }
     case 'toggleShopping':
       return {
@@ -147,6 +167,63 @@ function reducer(state: AppState, action: Action): AppState {
           [action.key]: !state.shoppingChecks[action.key],
         },
       }
+    case 'setRecipeStock': {
+      const current = state.recipeStock[action.recipeId] ?? {}
+      return {
+        ...state,
+        recipeStock: {
+          ...state.recipeStock,
+          [action.recipeId]: {
+            ...current,
+            [action.ingredientId]: Math.max(0, action.value),
+          },
+        },
+      }
+    }
+    case 'addRecipeStock': {
+      const current = state.recipeStock[action.recipeId] ?? {}
+      const next = { ...current }
+      for (const [id, delta] of Object.entries(action.adds)) {
+        next[id] = Math.max(0, (next[id] ?? 0) + delta)
+      }
+      return {
+        ...state,
+        recipeStock: { ...state.recipeStock, [action.recipeId]: next },
+      }
+    }
+    case 'upsertExtra': {
+      const current = state.recipeExtras[action.recipeId] ?? []
+      const exists = current.some((e) => e.id === action.extra.id)
+      return {
+        ...state,
+        recipeExtras: {
+          ...state.recipeExtras,
+          [action.recipeId]: exists
+            ? current.map((e) => (e.id === action.extra.id ? action.extra : e))
+            : [...current, action.extra],
+        },
+      }
+    }
+    case 'deleteExtra':
+      return {
+        ...state,
+        recipeExtras: {
+          ...state.recipeExtras,
+          [action.recipeId]: (state.recipeExtras[action.recipeId] ?? []).filter(
+            (e) => e.id !== action.id,
+          ),
+        },
+      }
+    case 'addRecipePurchase': {
+      const current = state.recipePurchases[action.recipeId] ?? []
+      return {
+        ...state,
+        recipePurchases: {
+          ...state.recipePurchases,
+          [action.recipeId]: [action.purchase, ...current].slice(0, 50),
+        },
+      }
+    }
     default:
       return state
   }
@@ -166,6 +243,11 @@ interface AppContextValue {
   resetDemo: () => void
   wipeData: () => void
   toggleShopping: (key: string) => void
+  setRecipeStock: (recipeId: string, ingredientId: string, value: number) => void
+  addRecipeStock: (recipeId: string, adds: Record<string, number>) => void
+  upsertExtra: (recipeId: string, extra: ShoppingExtra) => void
+  deleteExtra: (recipeId: string, id: string) => void
+  addRecipePurchase: (recipeId: string, purchase: RecipePurchase) => void
   exportJson: () => string
 }
 
@@ -206,6 +288,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       resetDemo: () => dispatch({ type: 'reset' }),
       wipeData: () => dispatch({ type: 'wipe' }),
       toggleShopping: (key) => dispatch({ type: 'toggleShopping', key }),
+      setRecipeStock: (recipeId, ingredientId, value) =>
+        dispatch({ type: 'setRecipeStock', recipeId, ingredientId, value }),
+      addRecipeStock: (recipeId, adds) => dispatch({ type: 'addRecipeStock', recipeId, adds }),
+      upsertExtra: (recipeId, extra) => dispatch({ type: 'upsertExtra', recipeId, extra }),
+      deleteExtra: (recipeId, id) => dispatch({ type: 'deleteExtra', recipeId, id }),
+      addRecipePurchase: (recipeId, purchase) =>
+        dispatch({ type: 'addRecipePurchase', recipeId, purchase }),
       exportJson: () => JSON.stringify(state, null, 2),
     }),
     [state],

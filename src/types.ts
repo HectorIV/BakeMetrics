@@ -198,6 +198,32 @@ export interface Settings {
   logoDataUrl?: string
 }
 
+/** Línea libre que el usuario agrega a la compra de una receta (envases, gas, decoración…). */
+export interface ShoppingExtra {
+  id: string
+  name: string
+  price: number
+}
+
+export interface RecipePurchaseLine {
+  name: string
+  kind: 'ingredient' | 'packaging' | 'extra'
+  /** Paquetes comprados (ingrediente/empaque) o 1 para una línea libre. */
+  qty: number
+  unit?: string
+  /** Precio por paquete, o total en líneas libres. */
+  price: number
+  total: number
+}
+
+/** Compra registrada para una receta concreta. */
+export interface RecipePurchase {
+  id: string
+  date: string
+  total: number
+  lines: RecipePurchaseLine[]
+}
+
 export interface AppState {
   version: number
   ingredients: Ingredient[]
@@ -206,6 +232,12 @@ export interface AppState {
   batches: Batch[]
   settings: Settings
   shoppingChecks: Record<string, boolean>
+  /** Inventario por receta: recipeId -> ingredientId -> cantidad en unidad base. */
+  recipeStock: Record<string, Record<string, number>>
+  /** Líneas libres de compra por receta. */
+  recipeExtras: Record<string, ShoppingExtra[]>
+  /** Historial de compras por receta. */
+  recipePurchases: Record<string, RecipePurchase[]>
 }
 
 export interface ParsedReceiptItem {
